@@ -1,85 +1,74 @@
-import { animated, to, useSprings } from "@react-spring/web";
-import { ReactElement, useCallback, useEffect, useRef, useState } from "react";
+import { SpringValue, useSprings } from "@react-spring/web";
+import {
+  ForwardRefExoticComponent,
+  ForwardedRef,
+  PropsWithoutRef,
+  ReactElement,
+  RefAttributes,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { useGesture } from "react-use-gesture";
+import CardSwipeItem from "./CardSwipeItem";
+import { DIRECTIONS } from "./CardSwipe.types";
 
 const calcX = (y: number, ly: number) =>
   -(y - ly - window.innerHeight / 2) / 20;
 const calcY = (x: number, lx: number) => (x - lx - window.innerWidth / 2) / 20;
 
-enum DIRECTIONS {
-  TOP = "TOP",
-  LEFT = "LEFT",
-  RIGHT = "RIGHT",
-  BOTTOM = "BOTTOM",
-}
+const defaultKeyExtractor = ({ index }: { item: any; index: number }) =>
+  `${index}`;
 
 type Props<ItemType> = {
   data: ItemType[];
-  renderItem: (args: { item: ItemType }) => ReactElement;
+  renderItem: (args: {
+    item: ItemType;
+    index: number;
+    direction: SpringValue<DIRECTIONS>;
+  }) => ReactElement;
+  keyExtractor?: (args: { item: ItemType; index: number }) => string;
+  innerRef?: CardSwipeRef;
+  ref?: CardSwipeRef;
+  onChange?: (
+    newIndex: number,
+    args: {
+      item: ItemType;
+      index: number;
+      direction: DIRECTIONS;
+    }
+  ) => Promise<boolean> | void | boolean;
+  index?: number;
 };
 
-function useValue<valueType>({
-  value,
-  onChange,
-  formatValue = (value) => value,
-  unFormatValue = (value) => value,
-  isValid = () => true,
-  isFormattedPartially = () => false,
-}: {
-  value?: valueType;
-  onChange?: (value: valueType) => void;
-  formatValue?: (value: valueType) => valueType;
-  unFormatValue?: (value: valueType) => valueType;
-  isValid?: (value: valueType) => boolean;
-  isFormattedPartially?: (value: valueType) => boolean;
-}) {
-  const localValueRef = useRef(value);
+export type CardSwipeType = { getBack: () => void };
 
-  const [formattedValue, setFormattedValue] = useState(() => {
-    if (value !== undefined) {
-      return formatValue(value);
-    }
-  });
+type CardSwipeRef = ForwardedRef<CardSwipeType>;
 
-  const onChangeValue = useCallback(
-    (newValue: valueType) => {
-      // for use cases like date/currency where it's not completed with / and dot as an end character in string
-      if (isFormattedPartially(newValue)) {
-        setFormattedValue(newValue);
-        return;
-      }
+const initialPosition = {
+  rotateX: 0,
+  rotateY: 0,
+  rotateZ: 0,
+  scale: 1,
+  zoom: 0,
+  x: 0,
+  y: 0,
+};
 
-      const _newUnformattedValue = unFormatValue(newValue);
-      if (!isValid(_newUnformattedValue)) {
-        return;
-      }
-
-      const _formattedValue = formatValue(_newUnformattedValue);
-      localValueRef.current = _newUnformattedValue;
-
-      if (onChange) {
-        onChange(_newUnformattedValue);
-      }
-      setFormattedValue(_formattedValue);
-    },
-    [onChange]
-  );
-
-  useEffect(() => {
-    if (value !== localValueRef.current) {
-      // @ts-ignore
-      setFormattedValue(formatValue(value));
-      localValueRef.current = value;
-    }
-  }, [value]);
-}
-
-export default function CardSwipe<ItemType>({
+function CardSwipe<ItemType>({
   data,
   renderItem,
+  keyExtractor = defaultKeyExtractor,
+  innerRef,
+  onChange,
+  index,
 }: Props<ItemType>) {
-  const [gone] = useState(() => new Set());
-
+  const _index = useRef(data.length - 1);
+  // change it with loading state which is easy to understand
+  const [enabled, setEnableState] = useState(true);
+  // console.log("enabled>>>>>>", index, _index.current, enabled);
   useEffect(() => {
     const preventDefault = (e: Event) => e.preventDefault();
     document.addEventListener("gesturestart", preventDefault);
@@ -91,32 +80,34 @@ export default function CardSwipe<ItemType>({
     };
   }, []);
 
-  const domTarget = useRef(null);
   const [springProps, api] = useSprings(data.length, () => ({
-    rotateX: 0,
-    rotateY: 0,
-    rotateZ: 0,
-    scale: 1,
-    zoom: 0,
-    x: 0,
-    y: 0,
+    ...initialPosition,
     config: { mass: 5, tension: 350, friction: 40 },
   }));
+  const [springDirectionProps, springDirectionAPI] = useSprings(
+    data.length,
+    () => ({
+      direction: 0,
+      config: { round: 1, bounce: 0 },
+    })
+  );
 
   const bind = useGesture(
     {
-      onDrag: ({
+      onDrag: async ({
         active,
-        down,
         movement: [x, y],
         velocity,
         args: [cardIndex],
+        ...rest
       }) => {
+        // const uniqueIdentifier = keyExtractor({item: data[cardIndex], index: cardIndex});
+        // console.log("rest", cardIndex, rest);
+        // console.log("currentIndex>>>>>>> ondrag", index)
         // trigger can consider if card is near edges or not
         const trigger = velocity > 0.2;
-        let swipeDirection;
+        let swipeDirection = DIRECTIONS.NONE;
         const isMovingVertically = Math.abs(x) < Math.abs(y);
-
         if (isMovingVertically) {
           if (y < 0) {
             swipeDirection = DIRECTIONS.TOP;
@@ -133,11 +124,12 @@ export default function CardSwipe<ItemType>({
 
         let rotateZ = 0;
         if (!active && trigger) {
-          gone.add(cardIndex);
+          _index.current = cardIndex - 1;
+          // gone.add(cardIndex);
           // return;
         }
-        const isGone = gone.has(cardIndex);
-        console.log("isGone",active, down, isGone, window.innerWidth);
+        const isGone = cardIndex > _index.current;
+        // console.log("cardIndex>>>>>>.", isGone, cardIndex, _index.current);
         let _x = x;
         let _y = y;
 
@@ -166,7 +158,18 @@ export default function CardSwipe<ItemType>({
           }
         }
 
-        api.start((i) => {
+        if (isGone && onChange && swipeDirection) {
+          setEnableState(false);
+        }
+
+        // reduce the number of loop
+        springDirectionAPI.set((i) => {
+          if (cardIndex !== i) return {};
+          return {
+            direction: active ? swipeDirection : DIRECTIONS.NONE,
+          };
+        });
+        const arrayResponse = api.start((i) => {
           if (cardIndex !== i) return;
           return {
             x: active || isGone ? _x : 0,
@@ -175,14 +178,39 @@ export default function CardSwipe<ItemType>({
             rotateY: 0,
             scale: active ? 1 : 1.1,
             rotateZ: active ? rotateZ : 0,
-
             config: {
               mass: 5,
               tension: active ? 800 : isGone ? 200 : 350,
               friction: 40,
+              ...(isGone ? { duration: 500 } : {}),
             },
           };
         });
+        const response = await arrayResponse[0];
+        if (isGone && onChange && swipeDirection) {
+          // gone.delete(cardIndex);
+          const isDone = await onChange(_index.current, {
+            item: data[cardIndex],
+            index: cardIndex,
+            direction: swipeDirection,
+          });
+          if (isDone === false) {
+            _index.current++;
+            await api.start((i) => {
+              if (cardIndex !== i) return;
+              return {
+                ...initialPosition,
+                config: {
+                  mass: 5,
+                  tension: 200,
+                  friction: 40,
+                },
+              };
+            })[0];
+          }
+          setEnableState(true);
+        }
+        // console.log("response", response);
       },
       onPinch: ({ offset: [d, a], args: [cardIndex] }) =>
         api.start((i) => {
@@ -208,34 +236,62 @@ export default function CardSwipe<ItemType>({
           return { rotateX: 0, rotateY: 0, scale: 1 };
         }),
     },
-    { eventOptions: { passive: false } }
+    { eventOptions: { passive: false }, enabled }
   );
+
+  useImperativeHandle(
+    innerRef,
+    () => {
+      return {
+        getBack: () => {},
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (index !== undefined && index !== _index.current && api) {
+      api.set((i) => {
+        if (i <= index) {
+          return initialPosition;
+        } else if (i <= _index.current) {
+          return {
+            x: 200 + window.innerWidth,
+            y: 200 + window.innerHeight,
+            // rotateX: 0,
+            // rotateY: 0,
+            scale: 1,
+            // rotateZ: 0,
+          };
+        }
+        return {};
+      });
+      _index.current = index;
+    }
+  }, [index]);
+
   return (
     <>
       {data.map((item, i) => {
-        const { x, y, rotateX, rotateY, rotateZ, zoom, scale } = springProps[i];
-        // const { wheelY } = wheelProps[i];
         return (
-          <animated.div
-            key={i}
-            {...bind(i)}
-            ref={domTarget}
-            // className={styles.card}
-            style={{
-              transform: "perspective(600px)",
-              x,
-              y,
-              scale: to([scale, zoom], (s, z) => s + z),
-              rotateX,
-              rotateY,
-              rotateZ,
-              position: "absolute",
-            }}
-          >
-            {renderItem({ item })}
-          </animated.div>
+          <CardSwipeItem<ItemType>
+            item={item}
+            key={keyExtractor({ item, index: i })}
+            bind={bind}
+            springProp={springProps[i]}
+            springDirectionProp={springDirectionProps[i]}
+            renderItem={renderItem}
+            index={i}
+          />
         );
       })}
     </>
   );
 }
+
+export default forwardRef(function <ItemType>(
+  props: Props<ItemType>,
+  ref: CardSwipeRef
+) {
+  return <CardSwipe {...props} innerRef={ref} />;
+}) as typeof CardSwipe;
