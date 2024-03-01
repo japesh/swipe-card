@@ -6,23 +6,28 @@ import { DIRECTIONS } from "./CardSwipe.types";
 const CardSwipeItem = function <ItemType>({
   item,
   bind,
-  springProp,
+  x,
+  y,
+  rotateX,
+  rotateY,
+  rotateZ,
+  zoom,
+  scale,
   renderItem,
-  springDirectionProp,
+  springDirection,
   index,
 }: {
   bind: (...args: any[]) => ReactEventHandlers;
   item: ItemType;
-  springProp: {
-    scale: SpringValue<number>;
-    x: SpringValue<number>;
-    y: SpringValue<number>;
-    rotateX: SpringValue<number>;
-    rotateY: SpringValue<number>;
-    rotateZ: SpringValue<number>;
-    zoom: SpringValue<number>;
-  };
-  springDirectionProp: { direction: SpringValue<DIRECTIONS> };
+
+  scale: SpringValue<number>;
+  x: SpringValue<number>;
+  y: SpringValue<number>;
+  rotateX: SpringValue<number>;
+  rotateY: SpringValue<number>;
+  rotateZ: SpringValue<number>;
+  zoom: SpringValue<number>;
+  springDirection: SpringValue<DIRECTIONS>;
   renderItem: (args: {
     item: ItemType;
     index: number;
@@ -30,8 +35,6 @@ const CardSwipeItem = function <ItemType>({
   }) => ReactElement;
   index: number;
 }) {
-  const { x, y, rotateX, rotateY, rotateZ, zoom, scale } = springProp;
-  const { direction } = springDirectionProp;
   return (
     <animated.div
       {...bind(index)}
@@ -46,7 +49,7 @@ const CardSwipeItem = function <ItemType>({
         position: "absolute",
       }}
     >
-      {renderItem({ item, index, direction })}
+      {renderItem({ item, index, direction: springDirection })}
     </animated.div>
   );
 };

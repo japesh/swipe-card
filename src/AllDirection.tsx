@@ -1,5 +1,5 @@
 import { SpringValue, animated, to } from "@react-spring/web";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import imgs from "./AllDirection.data";
 
 import styles from "./AllDirectionStyle.module.css";
@@ -42,11 +42,58 @@ const ActionIcon = ({
   );
 };
 
+const swipableDirections = [DIRECTIONS.LEFT, DIRECTIONS.TOP, DIRECTIONS.RIGHT];
+
 export default function App() {
   const [currentIndex, setCurrentIndex] = useState(imgs.length - 1);
   // const [undoStack, setUndoStack] = useState([]);
   const ref = useRef<CardSwipeType>(null);
   // console.log("currentIndex", currentIndex)
+  const renderItem = useCallback(
+    ({
+      item: img,
+      direction,
+      index,
+    }: {
+      item: string;
+      index: number;
+      direction: SpringValue<DIRECTIONS>;
+    }) => {
+      return (
+        <div className={styles.card}>
+          <div
+            className={styles.card__body}
+            style={{
+              backgroundImage: `url(${img})`,
+            }}
+          />
+          {/* <animated.div>{direction}</animated.div>
+          <div>{direction.get()}</div> */}
+          <div className={styles.footer}>
+            <ActionIcon
+              icon={RejectActionIcon}
+              selectedIcon={RejectActionIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.LEFT}
+            />
+            <ActionIcon
+              icon={AskCPAHollowIcon}
+              selectedIcon={AskCPAHollowIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.TOP}
+            />
+            <ActionIcon
+              icon={AcceptActionIcon}
+              selectedIcon={AcceptActionIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.RIGHT}
+            />
+          </div>
+        </div>
+      );
+    },
+    []
+  );
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -74,7 +121,8 @@ export default function App() {
       <CardSwipe<string>
         data={imgs}
         ref={ref}
-        keyExtractor={({ item: img }) => img}
+        keyExtractor={({ item: img, index }) => `${index}`}
+        swipableDirections={swipableDirections}
         onChange={(newIndex, { index, direction }) => {
           // console.log("direction",newIndex, index, direction);
           // eslint-disable-next-line no-restricted-globals
@@ -90,38 +138,7 @@ export default function App() {
           return false;
         }}
         index={currentIndex}
-        renderItem={({ item: img, direction }) => {
-          return (
-            <div className={styles.card}>
-              <div
-                className={styles.card__body}
-                style={{
-                  backgroundImage: `url(${img})`,
-                }}
-              />
-              <div className={styles.footer}>
-                <ActionIcon
-                  icon={RejectActionIcon}
-                  selectedIcon={RejectActionIconSelected}
-                  direction={direction}
-                  selectOnDirection={DIRECTIONS.LEFT}
-                />
-                <ActionIcon
-                  icon={AskCPAHollowIcon}
-                  selectedIcon={AskCPAHollowIconSelected}
-                  direction={direction}
-                  selectOnDirection={DIRECTIONS.TOP}
-                />
-                <ActionIcon
-                  icon={AcceptActionIcon}
-                  selectedIcon={AcceptActionIconSelected}
-                  direction={direction}
-                  selectOnDirection={DIRECTIONS.RIGHT}
-                />
-              </div>
-            </div>
-          );
-        }}
+        renderItem={renderItem}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -24,6 +25,7 @@ const defaultKeyExtractor = ({ index }: { item: any; index: number }) =>
 
 type Props<ItemType> = {
   data: ItemType[];
+  // render item should not be inline
   renderItem: (args: {
     item: ItemType;
     index: number;
@@ -41,6 +43,7 @@ type Props<ItemType> = {
     }
   ) => Promise<boolean> | void | boolean;
   index?: number;
+  swipableDirections?: DIRECTIONS[];
 };
 
 export type CardSwipeType = { getBack: () => void };
@@ -64,7 +67,19 @@ function CardSwipe<ItemType>({
   innerRef,
   onChange,
   index,
+  swipableDirections,
 }: Props<ItemType>) {
+  const _swipableDirections = useMemo(() => {
+    if (swipableDirections) {
+      return new Set(swipableDirections);
+    }
+    return new Set([
+      DIRECTIONS.LEFT,
+      DIRECTIONS.RIGHT,
+      DIRECTIONS.TOP,
+      DIRECTIONS.BOTTOM,
+    ]);
+  }, [swipableDirections]);
   const _index = useRef(data.length - 1);
   // change it with loading state which is easy to understand
   const [enabled, setEnableState] = useState(true);
@@ -80,16 +95,21 @@ function CardSwipe<ItemType>({
     };
   }, []);
 
-  const [springProps, api] = useSprings(data.length, () => ({
-    ...initialPosition,
-    config: { mass: 5, tension: 350, friction: 40 },
-  }));
+  const [springProps, api] = useSprings(
+    data.length,
+    () => ({
+      ...initialPosition,
+      config: { mass: 5, tension: 350, friction: 40 },
+    }),
+    []
+  );
   const [springDirectionProps, springDirectionAPI] = useSprings(
     data.length,
     () => ({
       direction: 0,
       config: { round: 1, bounce: 0 },
-    })
+    }),
+    []
   );
 
   const bind = useGesture(
@@ -123,7 +143,7 @@ function CardSwipe<ItemType>({
         }
 
         let rotateZ = 0;
-        if (!active && trigger) {
+        if (!active && trigger && _swipableDirections.has(swipeDirection)) {
           _index.current = cardIndex - 1;
           // gone.add(cardIndex);
           // return;
@@ -166,9 +186,10 @@ function CardSwipe<ItemType>({
         springDirectionAPI.set((i) => {
           if (cardIndex !== i) return {};
           return {
-            direction: active ? swipeDirection : DIRECTIONS.NONE,
+            direction: active && !isGone ? swipeDirection : DIRECTIONS.NONE,
           };
         });
+
         const arrayResponse = api.start((i) => {
           if (cardIndex !== i) return;
           return {
@@ -278,8 +299,8 @@ function CardSwipe<ItemType>({
             item={item}
             key={keyExtractor({ item, index: i })}
             bind={bind}
-            springProp={springProps[i]}
-            springDirectionProp={springDirectionProps[i]}
+            {...springProps[i]}
+            springDirection={springDirectionProps[i].direction}
             renderItem={renderItem}
             index={i}
           />
