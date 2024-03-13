@@ -1,5 +1,11 @@
 import { SpringValue, animated, to } from "@react-spring/web";
-import { useCallback, useRef, useState } from "react";
+import {
+  MouseEventHandler,
+  TouchEventHandler,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import imgs from "./AllDirection.data";
 
 import styles from "./AllDirectionStyle.module.css";
@@ -11,22 +17,47 @@ import AcceptActionIconSelected from "./images/AcceptActionIconSelected.svg";
 import RejectActionIconSelected from "./images/RejectActionIconSelected.svg";
 import AskCPAHollowIcon from "./images/AskCPAHollowIcon.svg";
 import AskCPAHollowIconSelected from "./images/AskCPAHollowIconSelected.svg";
-import { DIRECTIONS } from "./CardSwipe/CardSwipe.types";
+import { DIRECTIONS, RenderItem } from "./CardSwipe/CardSwipe.types";
+
+function supportsTouchEvents() {
+  return typeof window !== "undefined" && "ontouchstart" in window;
+}
 
 const ActionIcon = ({
   direction,
   selectOnDirection,
   icon,
   selectedIcon,
+  swipe
 }: {
   direction: SpringValue<DIRECTIONS>;
   selectOnDirection: DIRECTIONS;
   icon: string;
   selectedIcon: string;
+  swipe: (args: { direction: DIRECTIONS }) => Promise<void>;
 }) => {
+  const onPointerDown: MouseEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      swipe({direction: selectOnDirection})
+    },
+    [swipe]
+  );
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = useCallback(
+    (e) => {
+      e.stopPropagation();
+      swipe({direction: selectOnDirection})
+    },
+    [swipe]
+  );
+  // to prevent use gesture from triggering animation
+  const clickProps = supportsTouchEvents()
+    ? { onTouchStart }
+    : { onPointerDown };
   return (
-    <div className={styles.card__action}>
-      <animated.img src={icon} alt="reject" />
+    <div className={styles.card__action} {...clickProps}>
+      <animated.img src={icon} alt="reject" className="disable_gesture" />
       <animated.img
         className={styles.card__action__img}
         src={selectedIcon}
@@ -49,15 +80,12 @@ export default function App() {
   // const [undoStack, setUndoStack] = useState([]);
   const ref = useRef<CardSwipeType>(null);
   // console.log("currentIndex", currentIndex)
-  const renderItem = useCallback(
+  const renderItem: RenderItem<string> = useCallback(
     ({
       item: img,
       direction,
       index,
-    }: {
-      item: string;
-      index: number;
-      direction: SpringValue<DIRECTIONS>;
+      swipe,
     }) => {
       return (
         <div className={styles.card}>
@@ -75,18 +103,21 @@ export default function App() {
               selectedIcon={RejectActionIconSelected}
               direction={direction}
               selectOnDirection={DIRECTIONS.LEFT}
+              swipe={swipe}
             />
             <ActionIcon
               icon={AskCPAHollowIcon}
               selectedIcon={AskCPAHollowIconSelected}
               direction={direction}
               selectOnDirection={DIRECTIONS.TOP}
+              swipe={swipe}
             />
             <ActionIcon
               icon={AcceptActionIcon}
               selectedIcon={AcceptActionIconSelected}
               direction={direction}
               selectOnDirection={DIRECTIONS.RIGHT}
+              swipe={swipe}
             />
           </div>
         </div>
@@ -126,7 +157,7 @@ export default function App() {
         onChange={(newIndex, { index, direction }) => {
           // console.log("direction",newIndex, index, direction);
           // eslint-disable-next-line no-restricted-globals
-          const hasConfirmed = confirm("please confirm");
+          const hasConfirmed = confirm("show bottom sheet for irs category");
           if (hasConfirmed) {
             setCurrentIndex(newIndex);
             // setUndoStack(([...currentStack]) => {

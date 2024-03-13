@@ -20,6 +20,7 @@
   width: max-content;
   height: 80px;
   position: relative;
+  cursor: pointer;
   & .card__action__img {
     position: absolute;
     left: 0;

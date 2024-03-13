@@ -6,6 +6,7 @@ import {
   ReactElement,
   RefAttributes,
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -14,7 +15,7 @@ import {
 } from "react";
 import { useGesture } from "react-use-gesture";
 import CardSwipeItem from "./CardSwipeItem";
-import { DIRECTIONS } from "./CardSwipe.types";
+import { DIRECTIONS, RenderItem, SwipeFunction } from "./CardSwipe.types";
 
 const calcX = (y: number, ly: number) =>
   -(y - ly - window.innerHeight / 2) / 20;
@@ -26,11 +27,7 @@ const defaultKeyExtractor = ({ index }: { item: any; index: number }) =>
 type Props<ItemType> = {
   data: ItemType[];
   // render item should not be inline
-  renderItem: (args: {
-    item: ItemType;
-    index: number;
-    direction: SpringValue<DIRECTIONS>;
-  }) => ReactElement;
+  renderItem: RenderItem<ItemType>;
   keyExtractor?: (args: { item: ItemType; index: number }) => string;
   innerRef?: CardSwipeRef;
   ref?: CardSwipeRef;
@@ -58,6 +55,49 @@ const initialPosition = {
   zoom: 0,
   x: 0,
   y: 0,
+};
+
+const MIN_DISTANCE_FOR_SWIPE = 5;
+
+const getSwipeOutStyles = ({
+  swipeDirection,
+  x = 0,
+  y = 0,
+  isGone = true,
+}: {
+  swipeDirection: DIRECTIONS;
+  x?: number;
+  y?: number;
+  isGone?: boolean;
+}) => {
+  let rotateZ = 0,
+    _x,
+    _y;
+  switch (swipeDirection) {
+    case DIRECTIONS.LEFT: {
+      rotateZ = -10;
+      if (isGone) {
+        _x = -(200 + window.innerWidth);
+      }
+      break;
+    }
+    case DIRECTIONS.RIGHT: {
+      rotateZ = 10;
+      if (isGone) _x = 200 + window.innerWidth;
+      break;
+    }
+    case DIRECTIONS.TOP: {
+      if (isGone) {
+        _y = -(200 + window.innerHeight);
+      }
+      break;
+    }
+    case DIRECTIONS.BOTTOM: {
+      if (isGone) _y = 200 + window.innerHeight;
+      break;
+    }
+  }
+  return { _x, _y, rotateZ };
 };
 
 function CardSwipe<ItemType>({
@@ -112,6 +152,55 @@ function CardSwipe<ItemType>({
     []
   );
 
+  const swipe: SwipeFunction = useCallback(
+    async ({ index: cardIndex, direction: swipeDirection }) => {
+      setEnableState(false);
+      const { _x, _y, rotateZ } = getSwipeOutStyles({ swipeDirection });
+      await Promise.all(
+        api.start((i) => {
+          if (cardIndex !== i) return;
+          return {
+            x: _x,
+            y: _y,
+            rotateX: 0,
+            rotateY: 0,
+            scale: 1.1,
+            rotateZ: rotateZ,
+            config: {
+              mass: 5,
+              tension: 200,
+              friction: 40,
+              duration: 500,
+            },
+          };
+        })
+      );
+      if (onChange) {
+        const isDone = await onChange(_index.current, {
+          item: data[cardIndex],
+          index: cardIndex,
+          direction: swipeDirection,
+        });
+        if (isDone === false) {
+          _index.current++;
+          await api.start((i) => {
+            if (cardIndex !== i) return;
+            return {
+              ...initialPosition,
+              config: {
+                mass: 5,
+                tension: 200,
+                friction: 40,
+              },
+            };
+          })[0];
+        }
+        setEnableState(true);
+      }
+    },
+    [onChange, api.start, data]
+  );
+
   const bind = useGesture(
     {
       onDrag: async ({
@@ -129,54 +218,31 @@ function CardSwipe<ItemType>({
         let swipeDirection = DIRECTIONS.NONE;
         const isMovingVertically = Math.abs(x) < Math.abs(y);
         if (isMovingVertically) {
-          if (y < 0) {
+          if (y < -MIN_DISTANCE_FOR_SWIPE) {
             swipeDirection = DIRECTIONS.TOP;
-          } else if (y > 0) {
+          } else if (y > MIN_DISTANCE_FOR_SWIPE) {
             swipeDirection = DIRECTIONS.BOTTOM;
           }
         } else {
-          if (x < 0) {
+          if (x < -MIN_DISTANCE_FOR_SWIPE) {
             swipeDirection = DIRECTIONS.LEFT;
-          } else {
+          } else if (x > MIN_DISTANCE_FOR_SWIPE) {
             swipeDirection = DIRECTIONS.RIGHT;
           }
         }
 
-        let rotateZ = 0;
         if (!active && trigger && _swipableDirections.has(swipeDirection)) {
           _index.current = cardIndex - 1;
           // gone.add(cardIndex);
           // return;
         }
         const isGone = cardIndex > _index.current;
-        // console.log("cardIndex>>>>>>.", isGone, cardIndex, _index.current);
-        let _x = x;
-        let _y = y;
-
-        switch (swipeDirection) {
-          case DIRECTIONS.LEFT: {
-            rotateZ = -10;
-            if (isGone) {
-              _x = -(200 + window.innerWidth);
-            }
-            break;
-          }
-          case DIRECTIONS.RIGHT: {
-            rotateZ = 10;
-            if (isGone) _x = 200 + window.innerWidth;
-            break;
-          }
-          case DIRECTIONS.TOP: {
-            if (isGone) {
-              _y = -(200 + window.innerHeight);
-            }
-            break;
-          }
-          case DIRECTIONS.BOTTOM: {
-            if (isGone) _y = 200 + window.innerHeight;
-            break;
-          }
-        }
+        let { _x, _y, rotateZ } = getSwipeOutStyles({
+          swipeDirection,
+          x,
+          y,
+          isGone,
+        });
 
         if (isGone && onChange && swipeDirection) {
           setEnableState(false);
@@ -303,6 +369,7 @@ function CardSwipe<ItemType>({
             springDirection={springDirectionProps[i].direction}
             renderItem={renderItem}
             index={i}
+            swipe={swipe}
           />
         );
       })}

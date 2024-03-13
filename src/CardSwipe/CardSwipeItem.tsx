@@ -1,7 +1,7 @@
 import { SpringValue, animated, to } from "@react-spring/web";
-import { ReactElement, memo } from "react";
+import { ReactElement, memo, useCallback } from "react";
 import { ReactEventHandlers } from "react-use-gesture/dist/types";
-import { DIRECTIONS } from "./CardSwipe.types";
+import { DIRECTIONS, RenderItem, SwipeFunction } from "./CardSwipe.types";
 
 const CardSwipeItem = function <ItemType>({
   item,
@@ -16,10 +16,11 @@ const CardSwipeItem = function <ItemType>({
   renderItem,
   springDirection,
   index,
+  swipe,
 }: {
   bind: (...args: any[]) => ReactEventHandlers;
   item: ItemType;
-
+  swipe: SwipeFunction;
   scale: SpringValue<number>;
   x: SpringValue<number>;
   y: SpringValue<number>;
@@ -28,13 +29,15 @@ const CardSwipeItem = function <ItemType>({
   rotateZ: SpringValue<number>;
   zoom: SpringValue<number>;
   springDirection: SpringValue<DIRECTIONS>;
-  renderItem: (args: {
-    item: ItemType;
-    index: number;
-    direction: SpringValue<DIRECTIONS>;
-  }) => ReactElement;
+  renderItem: RenderItem<ItemType>;
   index: number;
 }) {
+  const _swipe = useCallback(
+    ({ direction }: { direction: DIRECTIONS }) => {
+      return swipe({ index, direction });
+    },
+    [swipe, index]
+  );
   return (
     <animated.div
       {...bind(index)}
@@ -49,7 +52,7 @@ const CardSwipeItem = function <ItemType>({
         position: "absolute",
       }}
     >
-      {renderItem({ item, index, direction: springDirection })}
+      {renderItem({ item, index, direction: springDirection, swipe: _swipe })}
     </animated.div>
   );
 };
