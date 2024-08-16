@@ -1,85 +1,123 @@
-import React, { useState } from 'react'
-import { useSprings, animated, to as interpolate } from '@react-spring/web'
-import { useDrag } from 'react-use-gesture'
+import {
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+import imgs from "./data";
 
-import styles from './styles.module.css'
+import ActionIcon from "./ActionIcons";
+import styles from "./AllDirectionStyle.module.css";
+import CardSwipe from "./CardSwipe";
+import { CardSwipeType, DIRECTIONS, RenderItem } from "./CardSwipe/CardSwipe.types";
+import AcceptIcon from "./images/AcceptIcon.svg";
+import AcceptIconSelected from "./images/AcceptIconSelected.svg";
+import ManIcon from "./images/ManIcon.svg";
+import ManIconSelected from "./images/ManIconSelected.svg";
+import RejectIcon from "./images/RejectIcon.svg";
+import RejectIconSelected from "./images/RejectIconSelected.svg";
 
-const cards = [
-  'https://upload.wikimedia.org/wikipedia/commons/f/f5/RWS_Tarot_08_Strength.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/5/53/RWS_Tarot_16_Tower.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/9/9b/RWS_Tarot_07_Chariot.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/d/db/RWS_Tarot_06_Lovers.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/RWS_Tarot_02_High_Priestess.jpg/690px-RWS_Tarot_02_High_Priestess.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/d/de/RWS_Tarot_01_Magician.jpg',
-]
 
-// These two are just helpers, they curate spring data, values that are later being interpolated into css
-const to = (i: number) => ({
-  x: 0,
-  y: i * -4,
-  scale: 1,
-  rot: -10 + Math.random() * 20,
-  delay: i * 100,
-})
-const from = (_i: number) => ({ x: 0, rot: 0, scale: 1.5, y: -1000 })
-// This is being used down there in the view, it interpolates rotation and scale into a css transform
-const trans = (r: number, s: number) =>
-  `perspective(1500px) rotateX(30deg) rotateY(${r / 10}deg) rotateZ(${r}deg) scale(${s})`
 
-function Deck() {
-  const [gone] = useState(() => new Set()) // The set flags all the cards that are flicked out
-  const [props, api] = useSprings(cards.length, i => ({
-    ...to(i),
-    from: from(i),
-  })) // Create a bunch of springs using the helpers above
-  // Create a gesture, we're interested in down-state, delta (current-pos - click-pos), direction and velocity
-  const bind = useDrag(({ args: [index], down, movement: [mx], direction: [xDir, yDir], velocity }) => {
-    const trigger = velocity > 0.2 // If you flick hard enough it should trigger the card to fly out
-    const dir = xDir < 0 ? -1 : 1 // Direction should either point left or right
-    if (!down && trigger) gone.add(index) // If button/finger's up and trigger velocity is reached, we flag the card ready to fly out
-    api.start(i => {
-      if (index !== i) return // We're only interested in changing spring-data for the current spring
-      const isGone = gone.has(index)
-      const x = isGone ? (200 + window.innerWidth) * dir : down ? mx : 0 // When a card is gone it flys out left or right, otherwise goes back to zero
-      const rot = mx / 100 + (isGone ? dir * 10 * velocity : 0) // How much the card tilts, flicking it harder makes it rotate faster
-      const scale = down ? 1.1 : 1 // Active cards lift up a bit
-      return {
-        x,
-        rot,
-        scale,
-        delay: undefined,
-        config: { friction: 50, tension: down ? 800 : isGone ? 200 : 500 },
-      }
-    })
-    if (!down && gone.size === cards.length)
-      setTimeout(() => {
-        gone.clear()
-        api.start(i => to(i))
-      }, 600)
-  })
-  // Now we're just mapping the animated values to our view, that's it. Btw, this component only renders once. :-)
-  return (
-    <>
-      {props.map(({ x, y, rot, scale }, i) => (
-        <animated.div className={styles.deck} key={i} style={{ x, y }}>
-          {/* This is the card itself, we're binding our gesture to it (and inject its index so we know which is which) */}
-          <animated.div
-            {...bind(i)}
-            style={{
-              transform: interpolate([rot, scale], trans),
-              backgroundImage: `url(${cards[i]})`,
-            }}
-          />
-        </animated.div>
-      ))}
-    </>
-  )
-}
+const swipableDirections = [DIRECTIONS.LEFT, DIRECTIONS.TOP, DIRECTIONS.RIGHT];
 
 export default function App() {
+  const [currentIndex, setCurrentIndex] = useState(imgs.length - 1);
+  // const [undoStack, setUndoStack] = useState([]);
+  const ref = useRef<CardSwipeType>(null);
+  // console.log("currentIndex", currentIndex)
+  const renderItem: RenderItem<string> = useCallback(
+    ({ item: img, direction, index, swipe }) => {
+      return (
+        <div className={styles.card}>
+          <div
+            className={styles.card__body}
+            style={{
+              backgroundImage: `url(${img})`,
+            }}
+          />
+          {/* <animated.div>{direction}</animated.div>
+          <div>{direction.get()}</div> */}
+          <div className={styles.footer}>
+            <ActionIcon
+              icon={RejectIcon}
+              selectedIcon={RejectIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.LEFT}
+              swipe={swipe}
+            />
+            <ActionIcon
+              icon={ManIcon}
+              selectedIcon={ManIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.TOP}
+              swipe={swipe}
+            />
+            <ActionIcon
+              icon={AcceptIcon}
+              selectedIcon={AcceptIconSelected}
+              direction={direction}
+              selectOnDirection={DIRECTIONS.RIGHT}
+              swipe={swipe}
+            />
+          </div>
+        </div>
+      );
+    },
+    []
+  );
   return (
     <div className={styles.container}>
-      <Deck />
+      <div className={styles.header}>
+        <div className={styles.button}>home</div>
+        {/* {undoStack.length > 0 && ( */}
+        <div
+          className={styles.button}
+          onClick={() => {
+            // ref.current?.getBack();
+            setCurrentIndex(currentIndex + 1);
+          }}
+        >
+          undo
+        </div>
+        {/* )} */}
+        {/* <div
+          className={styles.button}
+          onClick={() => {
+            setCurrentIndex(currentIndex - 1);
+          }}
+        >
+          Redo
+        </div> */}
+      </div>
+      <CardSwipe<string>
+        data={imgs}
+        ref={ref}
+        keyExtractor={({ item: img, index }) => `${index}`}
+        swipableDirections={swipableDirections}
+        onChange={(newIndex, { index, direction }) => {
+          // console.log("direction",newIndex, index, direction);
+          let message = "show confirm action";
+          if (direction === DIRECTIONS.LEFT) {
+            setCurrentIndex(newIndex);
+            return true;
+          } else if (direction === DIRECTIONS.TOP) {
+            message = "show confirm action for top direction";
+          }
+
+          const hasConfirmed = window.confirm(message);
+          if (hasConfirmed) {
+            setCurrentIndex(newIndex);
+            // setUndoStack(([...currentStack]) => {
+            //   currentStack.push({ index, direction });
+            //   return currentStack;
+            // });
+            return true;
+          }
+          return false;
+        }}
+        index={currentIndex}
+        renderItem={renderItem}
+      />
     </div>
-  )
+  );
 }

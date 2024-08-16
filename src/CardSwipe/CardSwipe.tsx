@@ -1,10 +1,5 @@
-import { SpringValue, useSprings } from "@react-spring/web";
+import { useSprings } from "@react-spring/web";
 import {
-  ForwardRefExoticComponent,
-  ForwardedRef,
-  PropsWithoutRef,
-  ReactElement,
-  RefAttributes,
   forwardRef,
   useCallback,
   useEffect,
@@ -14,38 +9,14 @@ import {
   useState,
 } from "react";
 import { useGesture } from "react-use-gesture";
+import {
+  CardSwipeProps,
+  CardSwipeRef,
+  DIRECTIONS,
+  SwipeFunction,
+} from "./CardSwipe.types";
 import CardSwipeItem from "./CardSwipeItem";
-import { DIRECTIONS, RenderItem, SwipeFunction } from "./CardSwipe.types";
-
-const calcX = (y: number, ly: number) =>
-  -(y - ly - window.innerHeight / 2) / 20;
-const calcY = (x: number, lx: number) => (x - lx - window.innerWidth / 2) / 20;
-
-const defaultKeyExtractor = ({ index }: { item: any; index: number }) =>
-  `${index}`;
-
-type Props<ItemType> = {
-  data: ItemType[];
-  // render item should not be inline
-  renderItem: RenderItem<ItemType>;
-  keyExtractor?: (args: { item: ItemType; index: number }) => string;
-  innerRef?: CardSwipeRef;
-  ref?: CardSwipeRef;
-  onChange?: (
-    newIndex: number,
-    args: {
-      item: ItemType;
-      index: number;
-      direction: DIRECTIONS;
-    }
-  ) => Promise<boolean> | void | boolean;
-  index?: number;
-  swipableDirections?: DIRECTIONS[];
-};
-
-export type CardSwipeType = { getBack: () => void };
-
-type CardSwipeRef = ForwardedRef<CardSwipeType>;
+import { calcX, calcY, defaultKeyExtractor, getSwipeOutStyles } from "./utils";
 
 const initialPosition = {
   rotateX: 0,
@@ -59,47 +30,6 @@ const initialPosition = {
 
 const MIN_DISTANCE_FOR_SWIPE = 5;
 
-const getSwipeOutStyles = ({
-  swipeDirection,
-  x = 0,
-  y = 0,
-  isGone = true,
-}: {
-  swipeDirection: DIRECTIONS;
-  x?: number;
-  y?: number;
-  isGone?: boolean;
-}) => {
-  let rotateZ = 0,
-    _x,
-    _y;
-  switch (swipeDirection) {
-    case DIRECTIONS.LEFT: {
-      rotateZ = -10;
-      if (isGone) {
-        _x = -(200 + window.innerWidth);
-      }
-      break;
-    }
-    case DIRECTIONS.RIGHT: {
-      rotateZ = 10;
-      if (isGone) _x = 200 + window.innerWidth;
-      break;
-    }
-    case DIRECTIONS.TOP: {
-      if (isGone) {
-        _y = -(200 + window.innerHeight);
-      }
-      break;
-    }
-    case DIRECTIONS.BOTTOM: {
-      if (isGone) _y = 200 + window.innerHeight;
-      break;
-    }
-  }
-  return { _x, _y, rotateZ };
-};
-
 function CardSwipe<ItemType>({
   data,
   renderItem,
@@ -108,7 +38,7 @@ function CardSwipe<ItemType>({
   onChange,
   index,
   swipableDirections,
-}: Props<ItemType>) {
+}: CardSwipeProps<ItemType>) {
   const _swipableDirections = useMemo(() => {
     if (swipableDirections) {
       return new Set(swipableDirections);
@@ -378,7 +308,7 @@ function CardSwipe<ItemType>({
 }
 
 export default forwardRef(function <ItemType>(
-  props: Props<ItemType>,
+  props: CardSwipeProps<ItemType>,
   ref: CardSwipeRef
 ) {
   return <CardSwipe {...props} innerRef={ref} />;
